@@ -1,45 +1,64 @@
+import os
+import subprocess
+import maya.cmds as cmd
+import maya.mel
+import getpass
+from shutil import copy2
+
 class playBetterWindow(object):   
 
     def get_project_name(self):
-	    return cp.load_current_project_name_from_file()
-    
+	    return "copain"    
+	    
     def get_project_path(self):
-    	m = pathmap.PipeMap()
-    	return m.generate_path([m.storage_projects, self.get_project_name()])
-	
+    	return os.path.realpath("Z:\marza\proj")	
+    	
     def __init__(self):
         self.pLabel = 'This is not an animation file'
         self.enAB = False
-        if (os.path.abspath(cmd.file(q=True, sn=True)).split(os.sep)[-2] == 'animation'):
+        self.name = 'playBetter'
+        self.windowSize = [185, 175]
+
+        if (os.path.abspath(cmd.file(q=True, sn=True)).split(os.sep)[-3] == 'anim'):
             self.pLabel = 'PlayBetter'
             self.enAB = True
-        self.name = 'playBetter'
-        self.windowSize = [207, 148]
+
         if cmd.window(self.name, exists = True):
         	cmd.deleteUI(self.name)
-        window = cmd.window(self.name, title = self.name, widthHeight=(self.windowSize[0], self.windowSize[1]))
+
+        window = cmd.window(self.name, title = self.name, s = 0, mnb = 0, mxb = 0, widthHeight=(self.windowSize[0], self.windowSize[1]))
         options = ["playblast", "playImages","convertToMovie","playMovie", "copyToDailies"]
         imgType = ['png','jpg','gif','tga']
         movType = ['mp4','mov','avi','wmv']
-        projs = ['FollowMe']
+        thisproj = self.get_project_name()
+        projs = [thisproj]
+        for one in os.listdir(self.get_project_path()):
+            if one is not thisproj:
+                projs.append(one)
         cmd.columnLayout("mainColumn", adjustableColumn=True, bgc= [0.2, 0.2, 0.2] )
         cmd.rowColumnLayout("projLayout", nc = 2, bgc= [0.2, 0.2, 0.2], parent = 'mainColumn')
         cmd.rowColumnLayout("mainRows", nc = 2, bgc= [0.2, 0.2, 0.2], parent = 'mainColumn')
         cmd.columnLayout("buttonColumn", adjustableColumn=True, bgc= [0.2, 0.2, 0.2], parent = 'mainRows' )
         projButton = cmd.optionMenu('project', l = 'project:', parent = 'projLayout', en = self.enAB)
+
         for one in projs:
             cmd.menuItem(label = one)
+
         cmd.columnLayout("dropColumn", adjustableColumn=True, bgc= [0.2, 0.2, 0.2], parent = 'mainRows' )
+
         for one in options:
             check = 1
-            if one == "playImages": 
+            if one in ["playImages", "playMovie"]: 
                 check = 0             
             cmd.checkBox(one, l = one, parent = "buttonColumn", v = check, en = self.enAB)
         cmd.optionMenu('imgType', l='', parent = 'dropColumn', en = self.enAB)
+
         for one in imgType:
             cmd.menuItem( label= one)
+
         cmd.text(l='')
         cmd.optionMenu('movType', l='', parent = 'dropColumn', en = self.enAB)
+
         for one in movType:
             cmd.menuItem( label= one )
         cmd.text('message', l='', parent = 'mainColumn')
@@ -47,8 +66,8 @@ class playBetterWindow(object):
         cmd.button( label='Close', parent = "mainColumn", command=('cmd.deleteUI(\"' + window + '\", window=True)') )
         cmd.showWindow( self.name )
         gMainWindow = maya.mel.eval('$tmpVar=$gMainWindow')
-        cmd.window( self.name, edit=True, widthHeight=(self.windowSize[0], self.windowSize[1]) )
-    	
+        cmd.window( self.name, edit=True, widthHeight=(self.windowSize[0], self.windowSize[1]) ) 	
+        
     def alert(self, color = 'green', guiElement = 'playBetter|mainColumn', message =''):
         colors = {
         'red':[1.0,0.0,0.0],
@@ -56,7 +75,6 @@ class playBetterWindow(object):
         'green':[0.0,1.0,0.0],
         'blue':[0.0,0.0,1.0],
         'grey': [0.2,0.2,0.2]}
-        #getColor = cmd.columnLayout(guiElement, q=True, bgc=True)
         newColor = colors.setdefault(color, [0.2,0.2,0.2])
         cmd.columnLayout(guiElement, e=True, bgc= (newColor[0],newColor[1],newColor[2]))
         cmd.text(guiElement+'|message', e=True, l= (message))
@@ -78,7 +96,7 @@ class playBetterWindow(object):
     			self.alert(color= 'orange', message = ('Please Wait, doing '+ops[one]))  
     			self.playBetter(go, imgType  = dropVals[0], movType = dropVals[1])
     	self.alert(color= 'grey', message = '') 
-        
+    	
     def playBetter(self, go = 0, scale=100.0, imgCommand = 'nul', movCommand = 'nul', imgFilePath = 'nul', firstImg = 'nul', lastImg = 'nul', imgType='png', movType = 'mp4'): 
         fpsDict = {'ntsc': 30, 'film': 24, 'pal': 25}
         fps = fpsDict[cmd.currentUnit(q = True, t = True)]
@@ -86,23 +104,25 @@ class playBetterWindow(object):
         height = cmd.getAttr('defaultResolution.height')
         curPath = cmd.file(q=True, sn=True)
         get = self.get_project_path()
+        proj = self.get_project_name()
         dirs = os.path.abspath(curPath).split(os.sep)
-        seq = dirs[-4]
-        shot = dirs[-3]
+        root = os.path.realpath(os.path.join(dirs[0],dirs[1]))
+        seq = dirs[-7]
+        shot = dirs[-6]
         fileName = dirs[-1]
         fileBase = os.path.splitext(fileName)[0]
         curFile = os.path.splitext(curPath)[0]
-        version = curFile.split('.')[-1]
-        dailies = os.path.realpath(os.path.join (get, 'production','dailies',getpass.getuser()))
-        movPath = os.path.realpath(os.path.join (get, 'production', '_anim_out', seq, shot, 'animation', 'movies', str(version)))
-        imgPath = os.path.realpath(os.path.join (get, 'production', '_anim_out', seq, shot, 'animation', 'slated', str(version)))
+        version = curFile.split('_')[-1]
+        dailies = os.path.realpath(os.path.join (get, proj, 'movie','check',getpass.getuser()))
+        movPath = os.path.realpath(os.path.join (get, proj, 'shot', seq, shot, 'movies', str(version)))
+        imgPath = os.path.realpath(os.path.join (get, proj, 'shot', seq, shot, 'images', str(version)))
         for path in (movPath, imgPath, dailies):
             if not os.path.isdir(path): 
                 print "Creating dir " + path
                 os.makedirs(path)
         movFile = os.path.join (movPath, fileName.replace('.ma', '.%s' % movType))  
         curMov = fileBase.replace(version, ('cur.'+movType))
-        playMov = 'djv_view '+movFile+' -playback_speed '+str(fps) 
+        playMov = 'ffplay '+movFile
         if go==1:
             #turn off nurbs curves - replace with store and restore
             panels= []
@@ -118,14 +138,10 @@ class playBetterWindow(object):
         	if file.endswith(imgType):
         		imageFiles.append(file)
         if len(imageFiles):
-            imageFiles.sort()
-    
-            firstImg = imageFiles[0].split('.')[3]	
-            lastImg = imageFiles[-1].split('.')[3]		
-            imgFilePath = os.path.join (imgPath,fileBase+'.'+firstImg+'-'+lastImg+'.'+imgType)
-            movCommand = 'djv_convert '+imgFilePath+' '+movFile+' -resize '+str(width)+' '+str(height)+' -default_speed '+str(fps)
+            imgFilePath = os.path.join (imgPath,fileBase+'.%04d.'+imgType)
+            movCommand = 'ffmpeg -y -i %s -r %s -s %sx%s %s' % (imgFilePath, str(fps), width, height, movFile)
             imgCommand = 'djv_view '+os.path.join(imgPath, imageFiles[0])+' -playback_speed '+ str(fps)
-            
+           
             if go==2:
                 try:
                     subprocess.Popen(imgCommand, stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True )
@@ -134,11 +150,11 @@ class playBetterWindow(object):
             if go==3:
                 print movCommand
                 try:
-                    subprocess.check_output(movCommand,shell=True,stderr=subprocess.STDOUT)
+                    subprocess.call(movCommand, shell = True)
                     print movFile
                 except subprocess.CalledProcessError as e:
                     raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))    
-                    alert(color= 'red', message = ('djv_view problem'))        
+                    alert(color= 'red', message = 'problem')        
             elif go==4:
                 subprocess.Popen(playMov, stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True )
             elif go==5:
@@ -153,4 +169,3 @@ class playBetterWindow(object):
             for all in curPath, curFile, movPath, movFile, imgPath, movCommand, imgCommand, playMov, dailies:
                 print all
                 
-playBetterWindow()
